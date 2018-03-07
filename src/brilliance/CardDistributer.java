@@ -2,7 +2,6 @@ package brilliance;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -17,6 +16,13 @@ import java.util.Set;
  */
 public class CardDistributer {
 	
+	// Number of cards we hope to have in the deck
+	private static final int DESIRED_DECK_SIZE = 35;
+
+	// The maximum number of identical gem positions between any two cards
+	// Value of 2 limited us to 18 cards
+	private static final int MAX_OVERLAP = 3;
+
 	public static enum Gems {
 		RED,
 		BLUE,
@@ -27,32 +33,25 @@ public class CardDistributer {
 		ORANGE,
 		;
 		
-		int[] appearences = new int[6];
+		int[] appearances = new int[6];
 		int missingFrom = 0;
 		int count = 0;
 		
 		public String toString() {
 			int total = missingFrom;
-			for (int i : appearences) {
+			for (int i : appearances) {
 				total+=i;
 			}
-			return this.name() + " " + Arrays.toString(appearences) + " count: " + total;
+			return this.name() + " " + Arrays.toString(appearances) + " count: " + total;
 		}
 	}
 	
 	public static class Card implements Comparable<Card> {
-		/**
-		 * 
-		 */
 		private static final int MAX_APPEARENCES = 3;
-		/**
-		 * 
-		 */
-		private static final int MAX_ATTEMPTS = 20000;
 		private static int cardCount = 0;
 		int id;
 		int totalAttempts = 0;
-		Gems[] gemsArray = new Gems[6];
+		Gems[] gemSlots = new Gems[6];
 		Set<Gems> gemSet = new HashSet<>();
 		int slotPointer = 0;
 		
@@ -60,43 +59,13 @@ public class CardDistributer {
 			this.id = cardCount++;
 		}
 
-		/**
-		 * @throws Exception
-		 */
-		private void init() throws Exception {
-			List<Gems> gemsLeft = new ArrayList<>(Arrays.asList(Gems.values()));
-			Collections.shuffle(gemsLeft);
-			populate(gemsLeft);
-		}
-
-		/**
-		 * @param gemsLeft
-		 * @throws Exception
-		 */
-		private void populate(List<Gems> gemsLeft) throws Exception {
-			Gems gem;
-			for (int slot = 0; slot < 6; slot++) {
-				int attempts = 0;
-				while (gemsArray[slot] == null && attempts++ <= MAX_ATTEMPTS) {
-					gem = gemsLeft.get(0);
-					if (addGem(gem, slot)) {
-						gemsLeft.remove(gem);
-					}
-				}
-				totalAttempts+= attempts;
-				if (attempts >= MAX_ATTEMPTS) {
-					throw new Exception("Attemps exceeded max attempts.");
-				}
-			}
-		}
-		
-		public void addGem(Gems gem) {
-			gemsArray[slotPointer++] = gem;
+		private void addGem(Gems gem) {
+			gemSlots[slotPointer++] = gem;
 		}
 		
 		public boolean addGem(Gems gem, int slot) {
-			if (gem.appearences[slot] < MAX_APPEARENCES) {
-				gemsArray[slot] = gem;
+			if (gem.appearances[slot] < MAX_APPEARENCES) {
+				gemSlots[slot] = gem;
 				gemSet.add(gem);
 				return true;
 			}
@@ -105,7 +74,7 @@ public class CardDistributer {
 		
 		public void clear() {
 			//clear out everything
-			Arrays.fill(gemsArray, null);
+			Arrays.fill(gemSlots, null);
 			gemSet.clear();
 		}
 
@@ -115,14 +84,26 @@ public class CardDistributer {
 		@Override
 		public int compareTo(Card o) {
 			int result = 0;
-			for (int i = 0; i < gemsArray.length; i++) {
-				if (gemsArray[i] == null || o.gemsArray[i] == null) {
+			for (int i = 0; i < gemSlots.length; i++) {
+				if (gemSlots[i] == null || o.gemSlots[i] == null) {
 					throw new RuntimeException(spit("Found it: %s%s", this, o));
 				}
-				if (gemsArray[i].equals(o.gemsArray[i])) {
+				if (gemSlots[i].equals(o.gemSlots[i])) {
 					result |= (1<<i);
 				}
 			}
+			
+			// now the inverse, since turning a card 180 degrees might
+			// still show an overlap...
+			
+			for (int i = 0; i < gemSlots.length; i++) {
+				Gems compareTo = o.gemSlots[5-i];
+				if (gemSlots[i].equals(compareTo)) {
+					result |= (1<<i);
+				}
+			}
+			
+			
 			return result;
 		}
 		
@@ -131,9 +112,9 @@ public class CardDistributer {
 			sb.append("#");
 			sb.append(id);
 			sb.append("# ");
-			for (int i = 0; i < gemsArray.length; i++) {
+			for (int i = 0; i < gemSlots.length; i++) {
 				sb.append(" - ");
-				sb.append((gemsArray[i] == null ? "NULL" : gemsArray[i].name()));
+				sb.append((gemSlots[i] == null ? "NULL" : gemSlots[i].name()));
 			}
 			return sb.toString();
 		}
@@ -158,10 +139,7 @@ public class CardDistributer {
 			}
 		}
 				
-		int cardNumber = 0;
-		for (Card card2 : mostSoFar) {
-			spit("Card %d:  %s", ++cardNumber, card2.toString());
-		}
+		showCards(mostSoFar);
 		spit("%d cards returned", mostSoFar.size());
 
 	}
@@ -174,27 +152,34 @@ public class CardDistributer {
 	 */
 	private static List<Card> sequenceSeries(List<Card> allPossibleCards, List<Card> mostSoFar) throws Exception {
 		int attempts = allPossibleCards.size();
-		while (mostSoFar.size() < 21 && attempts-- > 0) {
-			List<Card> cards = sequential(allPossibleCards, attempts);
-			if (cards.size() > mostSoFar.size()) {
-				mostSoFar = cards;
-				int cardNumber = 0;
-				for (Card card2 : mostSoFar) {
-					spit("Card %d:  %s", ++cardNumber, card2.toString());
-				}
-				
-				for (Gems gem : Gems.values()) {
-					spit("%s", gem);
-				}
-			}
+		while (mostSoFar.size() < DESIRED_DECK_SIZE && attempts-- > 0) {
 			for (Gems gem : Gems.values()) {
 				for (int slot = 0; slot < 6; slot++) {
-					gem.appearences[slot] = 0;
+					gem.appearances[slot] = 0;
 				}
 				gem.count = 0;
 			}
+			List<Card> cards = sequential(allPossibleCards, attempts);
+			if (cards.size() > mostSoFar.size()) {
+				mostSoFar = cards;
+				showCards(mostSoFar);
+			}
 		}
 		return mostSoFar;
+	}
+
+	/**
+	 * @param mostSoFar
+	 */
+	private static void showCards(List<Card> mostSoFar) {
+		int cardNumber = 0;
+		for (Card card2 : mostSoFar) {
+			spit("Card %d:  %s", ++cardNumber, card2.toString());
+		}
+		
+		for (Gems gem : Gems.values()) {
+			spit("%s", gem);
+		}
 	}
 
 	/**
@@ -202,9 +187,9 @@ public class CardDistributer {
 	 */
 	private static void updateGemCounts(Card card2) {
 		for (int slot = 0; slot < 6; slot++) {
-			Gems gem = card2.gemsArray[slot];
+			Gems gem = card2.gemSlots[slot];
 			gem.count++;
-			gem.appearences[slot]++;
+			gem.appearances[slot]++;
 		}
 	}
 
@@ -218,12 +203,12 @@ public class CardDistributer {
 		for (Card oCard : availableCards) {
 			boolean accepted = true;
 			for (Card yCard : acceptedCards) {
-				if (cardsOverlap(oCard, yCard) > 2) {
+				if (cardsOverlap(oCard, yCard) > MAX_OVERLAP) {
 					accepted = false;
 					break;
 				}
 			}
-			if (accepted && cardIsAcceptible(oCard)) {
+			if (accepted && gemCountsAcceptible(oCard)) {
 				acceptedCards.add(oCard);
 				updateGemCounts(oCard);
 			}
@@ -244,10 +229,6 @@ public class CardDistributer {
 			List<Gems> starter = new ArrayList<>();
 			starter.add(gem0);
 			allPossibleCards.addAll(makeCardAtTheEnd(starter));
-		}
-		
-		for (Card card : allPossibleCards) {
-			spit("%s", card);
 		}
 		
 		spit("%d cards constructed", allPossibleCards.size());
@@ -276,66 +257,17 @@ public class CardDistributer {
 		return cards;
 	}
 	
-	public static boolean cardIsAcceptible(Card card) {
+	public static boolean gemCountsAcceptible(Card card) {
 		for (int slot = 0; slot < 6; slot++) {
-			if (card.gemsArray[slot].appearences[slot] > 2) {
+			//for each card, there are actually 7 gem slots, including the "missing" gem slot
+			//so, the number of appearances for each gem should be the deck size / 7
+			if (card.gemSlots[slot].appearances[slot] >= (DESIRED_DECK_SIZE / 7)) {
 				return false;
 			}
 		}
 		return true;
 	}
 	
-	/**
-	 * 
-	 */
-	private static List<Card> randomized() {
-		List<Card> randomizedCards = new ArrayList<>();
-		
-		int attempts = 0;
-		int maxAttempts = 5000000;
-		Card card;
-		while (randomizedCards.size() < 21 && attempts++ < maxAttempts) {
-			if (attempts%(maxAttempts/10) == 0) {
-				spit("Attempt... %d", attempts);
-			}
-			try {
-				card = new Card();
-				card.init();
-				boolean valid = true;
-				for (Card createdCard : randomizedCards) {
-					try {
-						valid = cardsOverlap(card, createdCard) < 2;
-						if (!valid) {
-							break;
-						}
-					} catch (RuntimeException e) {
-						spit("Card attempt: %d", attempts);
-						spit("Created cards: \n%s", randomizedCards);
-						spit("New card: %s", card);
-						spit("Gems:\n%s\n%s\n%s\n%s\n%s\n%s\n%s", (Object[])Gems.values());
-						e.printStackTrace();
-						System.exit(0);
-					}
-					
-				}
-				
-				if (valid) {
-					randomizedCards.add(card);
-					
-					updateGemCounts(card);
-					
-				} else {
-					card.clear();
-				}
-			} catch (Exception e1) {
-				//spit("Ran out of options: %s.", e1.getMessage());
-			}
-		}
-		
-		spit("Attempts: %d", attempts);
-		return randomizedCards;
-	}
-
 	/**
 	 * @param card
 	 * @param valid
@@ -348,9 +280,12 @@ public class CardDistributer {
 			return 0;
 		}
 		
+		// a bitmasked representation of which slots have the same gems
+		// 110000 - the top rows of the two cards have the same gems
 		int comparison = card.compareTo(createdCard);
 		int bitCount = 0;
 		for (int i = 0; i < 8; i++) {
+			// just counting the 1's to see how many are hits
 			if ((comparison & (1<<i)) == (1<<i)) {
 				bitCount++;
 			}
