@@ -24,25 +24,34 @@ public class CardDistributer {
 	private static final int MAX_OVERLAP = 3;
 
 	public static enum Gems {
-		RED,
-		BLUE,
-		YELLOW,
-		GREEN,
-		WHITE,
-		PINK,
-		ORANGE,
+		RED("https://s3.amazonaws.com/files.component.studio/BE534356-223E-11E8-95BE-987692B40D46/red.png"),
+		BLUE("https://s3.amazonaws.com/files.component.studio/BE0F6690-223E-11E8-AC1E-86955413C98C/blue.png"),
+		YELLOW("https://s3.amazonaws.com/files.component.studio/BE52E55A-223E-11E8-AC1E-86955413C98C/yellow.png"),
+		GREEN("https://s3.amazonaws.com/files.component.studio/BE5BD5AC-223E-11E8-95BE-987692B40D46/green.png"),
+		WHITE("https://s3.amazonaws.com/files.component.studio/BE4F8A18-223E-11E8-AC1E-86955413C98C/white.png"),
+		PURPLE("https://s3.amazonaws.com/files.component.studio/BE464502-223E-11E8-95BE-987692B40D46/purple.png"),
+		ORANGE("https://s3.amazonaws.com/files.component.studio/BE0975D2-223E-11E8-95BE-987692B40D46/orange.png"),
 		;
 		
+		final String csImageName;
 		int[] appearances = new int[6];
 		int missingFrom = 0;
 		int count = 0;
 		
+		private Gems(String name) {
+			this.csImageName = name;
+		}
+
 		public String toString() {
 			int total = missingFrom;
 			for (int i : appearances) {
 				total+=i;
 			}
 			return this.name() + " " + Arrays.toString(appearances) + " count: " + total;
+		}
+		
+		public String toCSVVariable() {
+			return this.csImageName;
 		}
 	}
 	
@@ -140,6 +149,7 @@ public class CardDistributer {
 		}
 				
 		showCards(mostSoFar);
+		CsvExporter.export(mostSoFar);
 		spit("%d cards returned", mostSoFar.size());
 
 	}
